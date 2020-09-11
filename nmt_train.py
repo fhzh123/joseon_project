@@ -87,6 +87,10 @@ def main(args):
     criterion = nn.CrossEntropyLoss()
     model.to(device)
 
+    best_val_loss = None
+    val_top1_acc = 0
+    val_top5_acc = 0
+    val_top10_acc = 0
     total_train_loss_list = list()
     total_test_loss_list = list()
     freq = 0
@@ -123,6 +127,12 @@ def main(args):
                     loss = criterion(predicted, trg_sequences_target)
                     if phase == 'valid':
                         val_loss += loss.item()
+                        top1_acc, top5_acc, top10_acc = accuracy(predicted, 
+                                                                 trg_sequences_target, 
+                                                                 topk=(1,5,10))
+                        val_top1_acc += top1_acc.item()
+                        val_top5_acc += top5_acc.item()
+                        val_top10_acc += top10_acc.item()
                 # If phase train, then backward loss and step optimizer and scheduler
                 if phase == 'train':
                     loss.backward()
@@ -138,6 +148,23 @@ def main(args):
                                                                  topk=(1,5,10))
                         print("[Epoch:%d] val_loss:%5.3f | top1_acc:%5.2f | top5_acc:%5.2f | spend_time:%5.2fmin"
                                 % (e+1, total_loss, top1_acc, top5_acc, (time.time() - start_time_e) / 60))
+            
+            # Finishing iteration
+            if phase == 'valid':
+                val_loss /= len(dataloader_dict['valid'])
+                val_top1_acc /= len(dataloader_dict['valid'])
+                val_top5_acc /= len(dataloader_dict['valid'])
+                val_top10_acc /= len(dataloader_dict['valid'])
+                total_test_loss_list.append(val_loss)
+                print("[Epoch:%d] val_loss:%5.3f | top1_acc:%5.2f | top5_acc:%5.2f | top5_acc:%5.2f | spend_time:%5.2fmin"
+                        % (e+1, total_loss, val_top1_acc, val_top5_acc, val_top10_acc, (time.time() - start_time_e) / 60))
+                if not best_val_loss or val_loss > best_val_loss:
+                    print("[!] saving model...")
+                    if not os.path.exists(args.save_path):
+                        os.mkdir(args.save_path)
+                    torch.save(model.state_dict(), 
+                               os.path.join(args.save_path, f'ner_model_{args.crf_loss}.pt'))
+                    best_val_loss = val_loss
 
         # Learning rate scheduler setting
         scheduler.step()
