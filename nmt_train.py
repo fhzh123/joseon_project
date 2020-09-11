@@ -19,6 +19,7 @@ from torch.utils.data import DataLoader
 # Import Custom Module
 from translation.dataset import CustomDataset, PadCollate
 from translation.model import Transformer
+from named_entity_recognition.model import NER_model
 from utils import accuracy
 
 def main(args):
@@ -80,6 +81,15 @@ def main(args):
                 dim_feedforward=args.dim_feedforward, dropout=args.dropout,
                 num_encoder_layer=args.num_encoder_layer, num_decoder_layer=args.num_decoder_layer,
                 device=device)
+    
+    if args.resume:
+        model_ner = NER_model(emb_mat=emb_mat, word2id=hj_word2id, pad_idx=args.pad_idx, bos_idx=args.bos_idx, eos_idx=args.eos_idx, max_len=args.max_len,
+                        d_model=args.d_model, d_embedding=args.d_embedding, n_head=args.n_head,
+                        dim_feedforward=args.dim_feedforward, n_layers=args.num_encoder_layer, dropout=args.dropout,
+                        crf_loss=args.crf_loss, device=device)
+        model_ner.load_state_dict(torch.load(os.path.join(args.save_path, 'ner_model_False.pt')))
+        model.transformer_encoder.load_state_dict(model_ner.transformer_encoder.state_dict())
+
     print("Total Parameters:", sum([p.nelement() for p in model.parameters()]))
 
     optimizer = optim.AdamW(filter(lambda p: p.requires_grad, model.parameters()), lr=args.lr, weight_decay=args.w_decay)
@@ -163,7 +173,7 @@ def main(args):
                     if not os.path.exists(args.save_path):
                         os.mkdir(args.save_path)
                     torch.save(model.state_dict(), 
-                               os.path.join(args.save_path, f'ner_model_{args.crf_loss}.pt'))
+                               os.path.join(args.save_path, f'nmt_model_{args.resume}.pt'))
                     best_val_loss = val_loss
 
         # Learning rate scheduler setting
@@ -176,6 +186,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='NMT argparser')
     parser.add_argument('--save_path', default='./save', 
                         type=str, help='path of data pickle file (train)')
+    parser.add_argument('--resume', action='store_true',
+                        help='If not store, then training from scratch')
     parser.add_argument('--pad_idx', default=0, type=int, help='pad index')
     parser.add_argument('--bos_idx', default=1, type=int, help='index of bos token')
     parser.add_argument('--eos_idx', default=2, type=int, help='index of eos token')
