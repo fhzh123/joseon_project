@@ -89,7 +89,6 @@ def main(args):
                         crf_loss=args.crf_loss, device=device)
         model_ner.load_state_dict(torch.load(os.path.join(args.save_path, 'ner_model_False.pt')))
         model.transformer_encoder.load_state_dict(model_ner.transformer_encoder.state_dict())
-
     print("Total Parameters:", sum([p.nelement() for p in model.parameters()]))
 
     optimizer = optim.AdamW(filter(lambda p: p.requires_grad, model.parameters()), lr=args.lr, weight_decay=args.w_decay)
@@ -110,6 +109,8 @@ def main(args):
         for phase in ['train', 'valid']:
             if phase == 'train':
                 model.train()
+                if args.resume2:
+                    model.transformer_encoder.eval()
             if phase == 'valid':
                 model.eval()
                 val_f1 = 0
@@ -173,7 +174,7 @@ def main(args):
                     if not os.path.exists(args.save_path):
                         os.mkdir(args.save_path)
                     torch.save(model.state_dict(), 
-                               os.path.join(args.save_path, f'nmt_model_{args.resume}.pt'))
+                               os.path.join(args.save_path, f'nmt_model_{args.resume}_{args.resume2}.pt'))
                     best_val_loss = val_loss
 
         # Learning rate scheduler setting
@@ -188,6 +189,8 @@ if __name__ == "__main__":
                         type=str, help='path of data pickle file (train)')
     parser.add_argument('--resume', action='store_true',
                         help='If not store, then training from scratch')
+    parser.add_argument('--resume2', action='store_true',
+                        help='If store, encoder layers is freeze')
     parser.add_argument('--pad_idx', default=0, type=int, help='pad index')
     parser.add_argument('--bos_idx', default=1, type=int, help='index of bos token')
     parser.add_argument('--eos_idx', default=2, type=int, help='index of eos token')
