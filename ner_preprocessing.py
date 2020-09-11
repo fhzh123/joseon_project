@@ -45,7 +45,7 @@ def main(args):
         total_string_list.extend(data_string_list)
         total_ner_list.extend(data_ner_list)
         # 2-5) King list setting
-        king_id = int(data_list[0].split('NER/')[1][:2])
+        king_id = int(data_path.split('NER/')[1][:2]) - 1
         total_king_list.extend([king_id for _ in range(len(data_string_list))])
 
     #===================================#
@@ -110,7 +110,7 @@ def main(args):
     #===================================#
 
     # 1) NER parsing setting
-    print('Hanja sentence parsing...')
+    print('NER parsing...')
     start_time = time.time()
     NER_label2id = {
         'O': 0,

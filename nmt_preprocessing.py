@@ -1,7 +1,9 @@
 # Import Modules
 import os
 import json
+import time
 import pickle
+import argparse
 import numpy as np
 import sentencepiece as spm
 from glob import glob
@@ -41,7 +43,7 @@ def main(args):
         total_src_list.extend(data_src_list)
         total_trg_list.extend(data_trg_list)
         # 2-4) King list setting
-        king_id = int(data_list[0].split('NER/')[1][:2])
+        king_id = int(data_path.split('data/')[1][:2])
         total_king_list.extend([king_id for _ in range(len(data_src_list))])
 
     #===================================#
@@ -59,7 +61,7 @@ def main(args):
     #==========DWE Results Open==========#
     #====================================#
 
-    with open(os.path.join(args.save_path, '/hj_word2id.pkl'), 'rb') as f:
+    with open(os.path.join(args.save_path, 'hj_word2id.pkl'), 'rb') as f:
         hanja_word2id = pickle.load(f)
 
     #===================================#
@@ -75,28 +77,28 @@ def main(args):
     # 2) Parsing sentence
     # 2-1) Train data parsing
     print('Train data start...')
-    for index in tqdm(split_string_record['train']):
+    for index in tqdm(split_src_record['train']):
         parsed_index = list()
         parsed_index.append(args.bos_idx) # Start token add
         for ind in index:
             ind = ind.replace(' ', '_')
             try:
-                parsed_index.append(word2id[ind])
+                parsed_index.append(hanja_word2id[ind])
             except KeyError:
-                parsed_index.append(word2id['<unk>'])
+                parsed_index.append(hanja_word2id['<unk>'])
         parsed_index.append(args.eos_idx) # End token add
         hj_parsed_indices_train.append(parsed_index)
 
     # 2-2) Test data parsing
     print('Test data start...')
-    for index in tqdm(split_string_record['test']):
+    for index in tqdm(split_src_record['test']):
         parsed_index = list()
         parsed_index.append(args.bos_idx) # Start token add
         for ind in index:
             try:
-                parsed_index.append(word2id[ind])
+                parsed_index.append(hanja_word2id[ind])
             except KeyError:
-                parsed_index.append(word2id['<unk>'])
+                parsed_index.append(hanja_word2id['<unk>'])
         parsed_index.append(args.eos_idx) # End token add
         hj_parsed_indices_test.append(parsed_index)
     print(f'Done! ; {round((time.time()-start_time)/60, 3)}min spend')
@@ -107,7 +109,7 @@ def main(args):
 
     # 1) Make Korean text to train vocab
     with open(f'{args.save_path}/korean.txt', 'w') as f:
-        for korean in train_korean:
+        for korean in split_trg_record['train']:
             f.write(f'{korean}\n')
 
     # 2) SentencePiece model training
@@ -115,11 +117,11 @@ def main(args):
     spm.SentencePieceTrainer.Train(
         f'--input={args.save_path}/korean.txt --model_prefix={args.save_path}/m_korean '
         f'--vocab_size={args.vocab_size} --character_coverage=0.9995 --split_by_whitespace=true '
-        f'--pad_id={args.pad_id} --unk_id={args.unk_id} --bos_id={args.bos_id} --eos_id={args.eos_id}')
+        f'--pad_id={args.pad_idx} --unk_id={args.unk_idx} --bos_id={args.bos_idx} --eos_id={args.eos_idx}')
 
     # 3) Korean vocabulary setting
     korean_vocab = list()
-    with open(f'{args.output_path}/m_korean.vocab') as f:
+    with open(f'{args.save_path}/m_korean.vocab') as f:
         for line in f:
             korean_vocab.append(line[:-1].split('\t')[0])
     korean_word2id = {w: i for i, w in enumerate(korean_vocab)}
@@ -129,8 +131,8 @@ def main(args):
     sp_kr.Load(f"{args.save_path}/m_korean.model")
 
     # 5) Korean parsing by SentencePiece model
-    train_korean_indices = [[args.bos_id] + sp_kr.EncodeAsIds(korean) + [args.eos_id] for korean in split_trg_record['train']]
-    test_korean_indices = [[args.bos_id] + sp_kr.EncodeAsIds(korean) + [args.eos_id] for korean in split_trg_record['test']]
+    train_korean_indices = [[args.bos_idx] + sp_kr.EncodeAsIds(korean) + [args.eos_idx] for korean in split_trg_record['train']]
+    test_korean_indices = [[args.bos_idx] + sp_kr.EncodeAsIds(korean) + [args.eos_idx] for korean in split_trg_record['test']]
 
     #===================================#
     #==============Saving===============#
@@ -148,7 +150,7 @@ def main(args):
             'king_train_indices': split_king_record['train'],
             'king_test_indices': split_king_record['test'],
             'hj_word2id': hanja_word2id,
-            'kr_word2id': korean_word2id
+            'kr_word2id': korean_word2id,
             'hj_id2word': {v: k for k, v in hanja_word2id.items()},
             'kr_id2word': {v: k for k, v in korean_word2id.items()}
         }, f)
@@ -159,9 +161,9 @@ def main(args):
 if __name__=='__main__':
     parser = argparse.ArgumentParser(description='Parsing Method')
     parser.add_argument('--max_len', default=150, type=int)
-    parser.add_argument('--save_path', default='./save/', 
+    parser.add_argument('--save_path', default='./save', 
                         type=str)
-    parser.add_argument('--data_path', default='../joseon_word_embedding/Crawl/crawledResults_NER/', 
+    parser.add_argument('--data_path', default='../joseon_word_embedding/data', 
                         type=str, help='Crawling data path')
     parser.add_argument('--data_split_per', default=0.2, type=float,
                         help='Train / Validation split ratio')

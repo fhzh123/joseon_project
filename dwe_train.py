@@ -45,10 +45,10 @@ def main(args):
             total_counter.update(new_word)
 
     vocab = list(total_counter.keys())
-    vocab.insert(0, '<pad>')
+    vocab.insert(0, '<unk>')
     vocab.insert(0, '</s>')
     vocab.insert(0, '<s>')
-    vocab.insert(0, '<unk>')
+    vocab.insert(0, '<pad>')
     word2id = {w: i for i, w in enumerate(vocab)}
 
     # Dataset Setting

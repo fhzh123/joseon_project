@@ -1,5 +1,7 @@
 # coding: utf-8
 import numpy as np
+from TorchCRF import CRF
+
 import torch
 from torch import nn
 from torch.nn import functional as F
@@ -7,7 +9,7 @@ from torch.nn.modules.activation import MultiheadAttention
 
 class NER_model(nn.Module):
     def __init__(self, emb_mat, word2id, pad_idx=0, bos_idx=1, eos_idx=2, max_len=150, d_model=512, d_embedding=256, n_head=8, 
-                 dim_feedforward=2048, n_layers=10, dropout=0.1, device=None):
+                 dim_feedforward=2048, n_layers=10, dropout=0.1, crf_loss=True, device=None):
         super(NER_model, self).__init__()
 
         self.pad_idx = pad_idx
@@ -17,6 +19,12 @@ class NER_model(nn.Module):
 
         self.dropout = nn.Dropout(dropout)
         self.device = device
+        self.crf_loss = crf_loss
+
+        # CRF_loss
+        if self.crf_loss:
+            self.crf = CRF(num_labels=9)
+            self.crf = self.crf.to(device)
 
         # Source embedding part
         # self.src_embedding = nn.Embedding(7559, d_model) # Need to fix number
@@ -27,7 +35,8 @@ class NER_model(nn.Module):
         # self.encoders = nn.ModuleList([
         #     nn.TransformerEncoderLayer(d_model, self_attn, dim_feedforward,
         #         activation='gelu', dropout=dropout) for i in range(n_layers)])
-        encoder_layers = nn.TransformerEncoderLayer(d_model, 8, 512, dropout)
+        encoder_layers = nn.TransformerEncoderLayer(d_model=d_model, nhead=8, dim_feedforward=dim_feedforward, 
+                                                    dropout=dropout, activation='gelu')
         self.transformer_encoder = nn.TransformerEncoder(encoder_layers, n_layers)
 
         # Output Linear Part
@@ -44,7 +53,7 @@ class NER_model(nn.Module):
         self.src_output_linear2.bias.data.zero_()
         self.src_output_linear2.weight.data.uniform_(-initrange, initrange)
         
-    def forward(self, sequence, king_id):
+    def forward(self, sequence, king_id, trg=None):
         encoder_out = self.src_embedding(sequence, king_id).transpose(0, 1)
         src_key_padding_mask = sequence == self.pad_idx
 
@@ -53,8 +62,14 @@ class NER_model(nn.Module):
         encoder_out1 = self.dropout(F.gelu(self.src_output_linear(encoder_out)))
         encoder_out2 = self.src_output_linear2(encoder_out1).transpose(0, 1)
         # encoder_out2 = F.softmax(encoder_out2, dim=2)
-
-        return encoder_out2
+        if self.crf_loss:
+            mask = torch.where(sequence.cpu()!=0,torch.tensor(1),torch.tensor(0))
+            mask = torch.tensor(mask, dtype=torch.float).byte()
+            mask = mask.to(self.device)
+            loss = self.crf.forward(encoder_out2, trg, mask).sum()
+            return encoder_out2, loss
+        else:
+            return encoder_out2
 
 
 class TokenEmbedding(nn.Embedding):
