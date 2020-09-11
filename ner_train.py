@@ -145,7 +145,12 @@ def main(args):
                             output_list = output_flat.max(dim=1)[1].tolist()
                             real_list = trg_flat.tolist()
                         f1_ = f1_score(real_list, output_list, average='macro')
-                        print("[loss:%5.2f][pp:%5.2f][f1:%5.2f]" % (total_loss, math.exp(total_loss), f1_))
+                        if args.crf_loss:
+                            print("[Epoch:%d] val_loss:%5.3f | val_f1:%5.2f | spend_time:%5.2fmin"
+                                    % (e+1, total_loss, f1_, (time.time() - start_time_e) / 60))
+                        else:
+                            print("[Epoch:%d] val_loss:%5.3f | val_pp:%5.2fS | val_f1:%5.2f | spend_time:%5.2fmin"
+                                    % (e+1, total_loss, math.exp(total_loss), f1_, (time.time() - start_time_e) / 60))
                         freq = 0
 
             # Finishing iteration
@@ -153,8 +158,12 @@ def main(args):
                 val_loss /= len(dataloader_dict['valid'])
                 val_f1 /= len(dataloader_dict['valid'])
                 total_test_loss_list.append(val_loss)
-                print("[Epoch:%d] val_loss:%5.3f | val_pp:%5.2fS | val_f1:%5.2f | spend_time:%5.2fmin"
-                        % (e+1, val_loss, math.exp(val_loss), val_f1, (time.time() - start_time_e) / 60))
+                if args.crf_loss:
+                    print("[Epoch:%d] val_loss:%5.3f | val_f1:%5.2f | spend_time:%5.2fmin"
+                            % (e+1, val_loss, val_f1, (time.time() - start_time_e) / 60))
+                else:
+                    print("[Epoch:%d] val_loss:%5.3f | val_pp:%5.2fS | val_f1:%5.2f | spend_time:%5.2fmin"
+                            % (e+1, val_loss, math.exp(val_loss), val_f1, (time.time() - start_time_e) / 60))
                 if not best_val_f1 or val_f1 > best_val_f1:
                     print("[!] saving model...")
                     if not os.path.exists(args.save_path):

@@ -43,7 +43,7 @@ def main(args):
         total_src_list.extend(data_src_list)
         total_trg_list.extend(data_trg_list)
         # 2-4) King list setting
-        king_id = int(data_path.split('data/')[1][:2])
+        king_id = int(data_path.split('data/')[1][:2]) - 1 # Start from 0
         total_king_list.extend([king_id for _ in range(len(data_src_list))])
 
     #===================================#
