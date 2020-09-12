@@ -53,8 +53,8 @@ class DynamicBernoulliEmbeddingModel(nn.Module):
         self.dictionary_reverse = {v: k for k, v in dictionary.items()}
 
         # Embeddings parameters.
-        self.rho = nn.Embedding(V * T, k)  # Stacked dynamic embeddings
-        self.alpha = nn.Embedding(V, k)  # Time independent context embeddings
+        self.rho = nn.Embedding(V * T, k)  # Stacked dynamic embeddings # 이부분
+        self.alpha = nn.Embedding(V, k)  # Time independent context embeddings # 이부분
         with torch.no_grad():
             nn.init.normal_(self.rho.weight, 0, 0.01)
             nn.init.normal_(self.alpha.weight, 0, 0.01)
@@ -71,7 +71,7 @@ class DynamicBernoulliEmbeddingModel(nn.Module):
             torch.Size([batch_size, self.negative_samples])
         )
         neg_samples = neg_samples + (times * self.V).reshape((-1, 1))
-        neg_samples = neg_samples.T.flatten()
+        neg_samples = neg_samples.T.flatten() # 이부분
         context_flat = contexts_summed.repeat((self.negative_samples, 1))
         testing = self.rho(neg_samples)
         eta_neg = (self.rho(neg_samples) * context_flat).sum(axis=1)

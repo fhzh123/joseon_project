@@ -95,7 +95,7 @@ def main(args):
     optimizer = optim.AdamW(filter(lambda p: p.requires_grad, model.parameters()), lr=args.lr, weight_decay=args.w_decay)
     # scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=args.lr_decay_step, gamma=args.lr_decay)
     scheduler = WarmupLinearSchedule(optimizer, warmup_steps=len(dataloader_dict['train'])*3, 
-                                     t_total=len(dataloader_dict['train'])*args.num_epochs)
+                                     t_total=len(dataloader_dict['train'])*args.num_epoch)
     criterion = nn.CrossEntropyLoss(ignore_index=args.pad_idx)
     model.to(device)
 
@@ -112,8 +112,8 @@ def main(args):
         for phase in ['train', 'valid']:
             if phase == 'train':
                 model.train()
-                if args.resume2:
-                    model.transformer_encoder.eval()
+                # if args.resume2:
+                #     model.transformer_encoder.eval()
             if phase == 'valid':
                 model.eval()
                 val_f1 = 0
