@@ -19,6 +19,7 @@ from torch.utils.data import DataLoader
 # Import Custom Module
 from translation.dataset import CustomDataset, PadCollate
 from translation.model import Transformer
+from translation.optimizer import Ralamb, WarmupLinearSchedule
 from named_entity_recognition.model import NER_model
 from utils import accuracy
 
@@ -92,8 +93,10 @@ def main(args):
     print("Total Parameters:", sum([p.nelement() for p in model.parameters()]))
 
     optimizer = optim.AdamW(filter(lambda p: p.requires_grad, model.parameters()), lr=args.lr, weight_decay=args.w_decay)
-    scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=args.lr_decay_step, gamma=args.lr_decay)
-    criterion = nn.CrossEntropyLoss()
+    # scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=args.lr_decay_step, gamma=args.lr_decay)
+    scheduler = WarmupLinearSchedule(optimizer, warmup_steps=len(dataloader_dict['train'])*3, 
+                                     t_total=len(dataloader_dict['train'])*args.num_epochs)
+    criterion = nn.CrossEntropyLoss(ignore_index=args.pad_idx)
     model.to(device)
 
     best_val_loss = None
@@ -148,6 +151,7 @@ def main(args):
                 if phase == 'train':
                     loss.backward()
                     optimizer.step()
+                    scheduler.step()
                     total_train_loss_list.append(loss.item())
 
                     # Print loss value only training
@@ -159,7 +163,8 @@ def main(args):
                                                                  topk=(1,5,10))
                         print("[Epoch:%d] val_loss:%5.3f | top1_acc:%5.2f | top5_acc:%5.2f | spend_time:%5.2fmin"
                                 % (e+1, total_loss, top1_acc, top5_acc, (time.time() - start_time_e) / 60))
-            
+                        freq = 0
+
             # Finishing iteration
             if phase == 'valid':
                 val_loss /= len(dataloader_dict['valid'])
@@ -178,7 +183,7 @@ def main(args):
                     best_val_loss = val_loss
 
         # Learning rate scheduler setting
-        scheduler.step()
+        # scheduler.step()
 
     pd.DataFrame(total_train_loss_list).to_csv(os.path.join(args.save_path, 'train_loss.csv'), index=False)
     pd.DataFrame(total_test_loss_list).to_csv(os.path.join(args.save_path, 'test_loss.csv'), index=False)
@@ -204,7 +209,7 @@ if __name__ == "__main__":
     parser.add_argument('--num_epoch', type=int, default=10, help='Epoch count; Default is 10')
     parser.add_argument('--batch_size', type=int, default=48, help='Batch size; Default is 48')
     parser.add_argument('--crf_loss', action='store_true')
-    parser.add_argument('--lr', type=float, default=5e-4, help='Learning rate; Default is 5e-4')
+    parser.add_argument('--lr', type=float, default=5e-5, help='Learning rate; Default is 5e-4')
     parser.add_argument('--lr_decay', type=float, default=0.5, help='Learning rate decay; Default is 0.5')
     parser.add_argument('--lr_decay_step', type=int, default=2, help='Learning rate decay step; Default is 5')
     parser.add_argument('--grad_clip', type=int, default=5, help='Set gradient clipping; Default is 5')

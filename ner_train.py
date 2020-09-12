@@ -117,8 +117,19 @@ def main(args):
                         loss = criterion(output_flat, trg_flat)
                     if phase == 'valid':
                         val_loss += loss.item()
-                        output_list = output_flat.max(dim=1)[1].tolist()
-                        real_list = trg_flat.tolist()
+                        if args.crf_loss:
+                            # Mask vector processing
+                            mask_ = list()
+                            for x_ in mask.tolist():
+                                mask_.append([1 if x==0 else x for x in x_])
+                            mask_ = torch.tensor(mask_).byte()
+                            output_list = model.crf.viterbi_decode(output, mask_)
+                            output_list = list(itertools.chain.from_iterable(output_list))
+                            real_list = trg.tolist()
+                            real_list = list(itertools.chain.from_iterable(real_list))
+                        else:
+                            output_list = output_flat.max(dim=1)[1].tolist()
+                            real_list = trg_flat.tolist()
                         f1_val = f1_score(real_list, output_list, average='macro')
                         val_f1 += f1_val
                 # If phase train, then backward loss and step optimizer and scheduler
