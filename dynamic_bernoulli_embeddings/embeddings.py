@@ -53,8 +53,17 @@ class DynamicBernoulliEmbeddingModel(nn.Module):
         self.dictionary_reverse = {v: k for k, v in dictionary.items()}
 
         # Embeddings parameters.
-        self.rho = nn.Embedding(V * T, k)  # Stacked dynamic embeddings # 이부분
-        self.alpha = nn.Embedding(V, k)  # Time independent context embeddings # 이부분
+
+        # New Version
+        self.rho = nn.Embedding(V * T, k)  # Stacked dynamic embeddings 
+        # self.rho2 = nn.Linear(50, k)
+        self.alpha = nn.Embedding(V, 50)  # Time independent context embeddings 
+        self.alpha2 = nn.Linear(50, k)
+
+        # Old Version
+        # self.rho = nn.Embedding(V * T, k)  # Stacked dynamic embeddings 
+        # self.alpha = nn.Embedding(V, k)  # Time independent context embeddings 
+
         with torch.no_grad():
             nn.init.normal_(self.rho.weight, 0, 0.01)
             nn.init.normal_(self.alpha.weight, 0, 0.01)
@@ -71,9 +80,8 @@ class DynamicBernoulliEmbeddingModel(nn.Module):
             torch.Size([batch_size, self.negative_samples])
         )
         neg_samples = neg_samples + (times * self.V).reshape((-1, 1))
-        neg_samples = neg_samples.T.flatten() # 이부분
+        neg_samples = neg_samples.T.flatten()
         context_flat = contexts_summed.repeat((self.negative_samples, 1))
-        testing = self.rho(neg_samples)
         eta_neg = (self.rho(neg_samples) * context_flat).sum(axis=1)
         return (torch.log(1 - self.sigmoid(eta_neg) + 1e-7)).sum()
 
@@ -106,7 +114,7 @@ class DynamicBernoulliEmbeddingModel(nn.Module):
         # they don't contribute to the context sum.
         context_mask = contexts == -1
         contexts[context_mask] = 0
-        contexts = self.alpha(contexts)
+        contexts = self.alpha2(self.alpha(contexts)) # New Version
         contexts[context_mask] = 0
         contexts_summed = contexts.sum(axis=1)
         eta = (self.rho(targets_adjusted) * contexts_summed).sum(axis=1)
@@ -119,6 +127,7 @@ class DynamicBernoulliEmbeddingModel(nn.Module):
             L_neg = self.L_neg(batch_size, times, contexts_summed)
             loss = (self.total_tokens / batch_size) * (L_pos + L_neg)
             L_prior = -self.lambda_0 / 2 * (self.alpha.weight ** 2).sum()
+            L_prior += -self.lambda_0 / 2 * (self.alpha2.weight ** 2).sum() # New Version
             L_prior += -self.lambda_0 / 2 * (self.rho.weight[0] ** 2).sum()
             if dynamic:
                 rho_trans = self.rho.weight.reshape((self.T, self.V, self.k))

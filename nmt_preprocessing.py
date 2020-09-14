@@ -160,7 +160,7 @@ def main(args):
 
 if __name__=='__main__':
     parser = argparse.ArgumentParser(description='Parsing Method')
-    parser.add_argument('--max_len', default=150, type=int)
+    parser.add_argument('--max_len', default=300, type=int)
     parser.add_argument('--save_path', default='./save', 
                         type=str)
     parser.add_argument('--data_path', default='../joseon_word_embedding/data', 

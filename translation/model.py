@@ -11,7 +11,7 @@ class Transformer(nn.Module):
     def __init__(self, emb_mat, src_word2id, src_vocab_num, trg_vocab_num, pad_idx=0, bos_idx=1, 
             eos_idx=2, max_len=300, d_model=512, d_embedding=256, n_head=8, 
             dim_feedforward=2048, num_encoder_layer=8, num_decoder_layer=8, dropout=0.1,
-            device=None):
+            baseline=False, device=None):
 
         super(Transformer, self).__init__()
 
@@ -19,11 +19,16 @@ class Transformer(nn.Module):
         self.bos_idx = bos_idx
         self.eos_idx = eos_idx
         self.max_len = max_len
+        self.baseline = baseline
 
         self.dropout = nn.Dropout(dropout)
 
         # Source embedding part
-        self.src_embedding = TransformerEmbedding_bilinear(len(src_word2id.keys()), d_model, d_embedding, emb_mat, src_word2id)
+        if self.baseline:
+            self.src_embedding = TransformerEmbedding(src_vocab_num, d_model, d_embedding,
+                                    pad_idx=self.pad_idx, max_len=self.max_len)
+        else:
+            self.src_embedding = TransformerEmbedding_bilinear(len(src_word2id.keys()), d_model, d_embedding, emb_mat, src_word2id)
         # Target embedding part
         self.trg_embedding = TransformerEmbedding(trg_vocab_num, d_model, d_embedding,
                                 pad_idx=self.pad_idx, max_len=self.max_len)
@@ -51,7 +56,10 @@ class Transformer(nn.Module):
         src_key_padding_mask = (src_input_sentence == self.pad_idx)
         tgt_key_padding_mask = (trg_input_sentence == self.pad_idx)
 
-        encoder_out = self.src_embedding(src_input_sentence, king_id).transpose(0, 1)
+        if self.baseline:
+            encoder_out = self.src_embedding(src_input_sentence).transpose(0, 1)
+        else:
+            encoder_out = self.src_embedding(src_input_sentence, king_id).transpose(0, 1)
         decoder_out = self.trg_embedding(trg_input_sentence).transpose(0, 1)
 
         # for i in range(len(self.encoders)):

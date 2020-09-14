@@ -81,7 +81,7 @@ def main(args):
                 d_model=args.d_model, d_embedding=args.d_embedding, n_head=args.n_head, 
                 dim_feedforward=args.dim_feedforward, dropout=args.dropout,
                 num_encoder_layer=args.num_encoder_layer, num_decoder_layer=args.num_decoder_layer,
-                device=device)
+                baseline=args.baseline, device=device)
     
     if args.resume:
         model_ner = NER_model(emb_mat=emb_mat, word2id=hj_word2id, pad_idx=args.pad_idx, bos_idx=args.bos_idx, eos_idx=args.eos_idx, max_len=args.max_len,
@@ -90,6 +90,8 @@ def main(args):
                         crf_loss=args.crf_loss, device=device)
         model_ner.load_state_dict(torch.load(os.path.join(args.save_path, 'ner_model_False.pt')))
         model.transformer_encoder.load_state_dict(model_ner.transformer_encoder.state_dict())
+        for param in model.transformer_encoder.parameters():
+            param.requires_grad = False
     print("Total Parameters:", sum([p.nelement() for p in model.parameters()]))
 
     optimizer = optim.AdamW(filter(lambda p: p.requires_grad, model.parameters()), lr=args.lr, weight_decay=args.w_decay)
@@ -100,9 +102,6 @@ def main(args):
     model.to(device)
 
     best_val_loss = None
-    val_top1_acc = 0
-    val_top5_acc = 0
-    val_top10_acc = 0
     total_train_loss_list = list()
     total_test_loss_list = list()
     freq = 0
@@ -112,12 +111,12 @@ def main(args):
         for phase in ['train', 'valid']:
             if phase == 'train':
                 model.train()
-                # if args.resume2:
-                #     model.transformer_encoder.eval()
             if phase == 'valid':
                 model.eval()
-                val_f1 = 0
                 val_loss = 0
+                val_top1_acc = 0
+                val_top5_acc = 0
+                val_top10_acc = 0
             for src, trg, king_id in tqdm(dataloader_dict[phase]):
                 # Sourcen, Target sentence setting
                 label_sequences = trg.to(device, non_blocking=True)
@@ -179,7 +178,7 @@ def main(args):
                     if not os.path.exists(args.save_path):
                         os.mkdir(args.save_path)
                     torch.save(model.state_dict(), 
-                               os.path.join(args.save_path, f'nmt_model_{args.resume}_{args.resume2}.pt'))
+                               os.path.join(args.save_path, f'nmt_model_{args.resume}.pt'))
                     best_val_loss = val_loss
 
         # Learning rate scheduler setting
@@ -194,8 +193,8 @@ if __name__ == "__main__":
                         type=str, help='path of data pickle file (train)')
     parser.add_argument('--resume', action='store_true',
                         help='If not store, then training from scratch')
-    parser.add_argument('--resume2', action='store_true',
-                        help='If store, encoder layers is freeze')
+    parser.add_argument('--baseline', action='store_true',
+                        help='If not store, then training from Dynamic Word Embedding')
     parser.add_argument('--pad_idx', default=0, type=int, help='pad index')
     parser.add_argument('--bos_idx', default=1, type=int, help='index of bos token')
     parser.add_argument('--eos_idx', default=2, type=int, help='index of eos token')
@@ -208,7 +207,6 @@ if __name__ == "__main__":
 
     parser.add_argument('--num_epoch', type=int, default=10, help='Epoch count; Default is 10')
     parser.add_argument('--batch_size', type=int, default=48, help='Batch size; Default is 48')
-    parser.add_argument('--crf_loss', action='store_true')
     parser.add_argument('--lr', type=float, default=5e-5, help='Learning rate; Default is 5e-4')
     parser.add_argument('--lr_decay', type=float, default=0.5, help='Learning rate decay; Default is 0.5')
     parser.add_argument('--lr_decay_step', type=int, default=2, help='Learning rate decay step; Default is 5')
@@ -221,7 +219,7 @@ if __name__ == "__main__":
     parser.add_argument('--dim_feedforward', type=int, default=512, help='Embedding Vector Dimension; Default is 512')
     parser.add_argument('--num_encoder_layer', default=8, type=int, help='number of encoder layer')
     parser.add_argument('--num_decoder_layer', default=8, type=int, help='number of decoder layer')
-    parser.add_argument('--dropout', type=float, default=0.5, help='Dropout Ratio; Default is 0.5')
+    parser.add_argument('--dropout', type=float, default=0.3, help='Dropout Ratio; Default is 0.5')
 
     parser.add_argument('--print_freq', type=int, default=300, help='Print train loss frequency; Default is 100')
     args = parser.parse_args()

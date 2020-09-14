@@ -65,7 +65,7 @@ def main(args):
     dictionary.compactify()
 
     # Model Training
-    model, loss_history = train_model(dataset, word2id, validation=None,
+    model, loss_history = train_model(dataset, word2id, validation=None, m=args.minibatch_iteration,
                                       num_epochs=args.num_epochs, notebook=False)
 
     # Model Saving
@@ -87,6 +87,7 @@ if __name__=='__main__':
                         help='Save path setting')
     # Training Setting
     parser.add_argument('--num_epochs', type=int, default=5, help='The number of epoch')
+    parser.add_argument('--minibatch_iteration', type=int, default=300, help='Mini-batch size')
     args = parser.parse_args()
 
     total_start_time = time.time()
