@@ -6,31 +6,31 @@ from random import random, randrange
 import torch
 from torch.utils.data.dataset import Dataset
 
-class HanjaKoreanDataset(Dataset):
-    def __init__(self, hanja_list, korean_list, king_list, min_len=4, max_len=300,
-                 bos_id=1, eos_id=2):
-        # hanja_list, korean_list = zip(*[(h, k) for h, k in zip(hanja_list, korean_list)\
-        #     if min_len <= len(h) <= src_max_len and min_len <= len(k) <= trg_max_len])
-        # King list version
-        hanja_list, korean_list, king_list = zip(*[(h, k, king) for h, k, king in zip(hanja_list, korean_list, king_list)\
-            if min_len <= len(h) <= max_len and min_len <= len(k) <= max_len])
+# class HanjaKoreanDataset(Dataset):
+#     def __init__(self, hanja_list, korean_list, king_list, min_len=4, max_len=300,
+#                  bos_id=1, eos_id=2):
+#         # hanja_list, korean_list = zip(*[(h, k) for h, k in zip(hanja_list, korean_list)\
+#         #     if min_len <= len(h) <= src_max_len and min_len <= len(k) <= trg_max_len])
+#         # King list version
+#         hanja_list, korean_list, king_list = zip(*[(h, k, king) for h, k, king in zip(hanja_list, korean_list, king_list)\
+#             if min_len <= len(h) <= max_len and min_len <= len(k) <= max_len])
 
-        print('hk', len(hanja_list))
-        self.hanja_korean = [(h, k, king) for h, k, king in zip(hanja_list, korean_list, king_list)]
-        self.hanja_korean = sorted(self.hanja_korean, key=lambda x: len(x[0])+len(x[1]))
-        self.hanja_korean = self.hanja_korean[-1000:] + self.hanja_korean[:-1000]
-        self.num_data = len(self.hanja_korean)
+#         print('hk', len(hanja_list))
+#         self.hanja_korean = [(h, k, king) for h, k, king in zip(hanja_list, korean_list, king_list)]
+#         self.hanja_korean = sorted(self.hanja_korean, key=lambda x: len(x[0])+len(x[1]))
+#         self.hanja_korean = self.hanja_korean[-1000:] + self.hanja_korean[:-1000]
+#         self.num_data = len(self.hanja_korean)
         
-    def __getitem__(self, index):
-        hanja, korean, king = self.hanja_korean[index]
-        return hanja, korean, king
+#     def __getitem__(self, index):
+#         hanja, korean, king = self.hanja_korean[index]
+#         return hanja, korean, king
     
-    def __len__(self):
-        return self.num_data
+#     def __len__(self):
+#         return self.num_data
 
 class CustomDataset(Dataset):
     def __init__(self, src_list, trg_list, king_list, 
-                 pad_idx=0, min_len=4, max_len=150):
+                 pad_idx=0, min_len=4, max_len=300):
         src_list, trg_list = zip(*[(h, k) for h, k in zip(src_list, trg_list)\
              if len(h) <= max_len and len(k) <= max_len])
         self.hanja_korean = [(h, k) for h, k in zip(src_list, trg_list) \

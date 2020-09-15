@@ -20,6 +20,7 @@ from torch.utils.data import DataLoader
 from translation.dataset import CustomDataset, PadCollate
 from translation.model import Transformer
 from translation.optimizer import Ralamb, WarmupLinearSchedule
+from translation.rnn_model import Encoder, Decoder, Seq2Seq
 from named_entity_recognition.model import NER_model
 from utils import accuracy
 
@@ -76,18 +77,28 @@ def main(args):
     #===================================#
 
     print("Build model")
-    model = Transformer(emb_mat, kr_word2id, src_vocab_num, trg_vocab_num, pad_idx=args.pad_idx, bos_idx=args.bos_idx, 
-                eos_idx=args.eos_idx, max_len=args.max_len,
-                d_model=args.d_model, d_embedding=args.d_embedding, n_head=args.n_head, 
-                dim_feedforward=args.dim_feedforward, dropout=args.dropout,
-                num_encoder_layer=args.num_encoder_layer, num_decoder_layer=args.num_decoder_layer,
-                baseline=args.baseline, device=device)
-    
+    if args.model_setting == 'transformer':
+        model = Transformer(emb_mat, hj_word2id, src_vocab_num, trg_vocab_num, pad_idx=args.pad_idx, bos_idx=args.bos_idx, 
+                    eos_idx=args.eos_idx, max_len=args.max_len,
+                    d_model=args.d_model, d_embedding=args.d_embedding, n_head=args.n_head, 
+                    dim_feedforward=args.dim_feedforward, dropout=args.dropout,
+                    num_encoder_layer=args.num_encoder_layer, num_decoder_layer=args.num_decoder_layer,
+                    baseline=args.baseline, device=device)
+    elif args.model_setting == 'rnn':
+        encoder = Encoder(src_vocab_num, args.d_embedding, args.d_model, 
+                        emb_mat, hj_word2id, n_layers=args.num_encoder_layer, 
+                        pad_idx=args.pad_idx, dropout=args.dropout)
+        decoder = Decoder(args.d_embedding, args.d_model, trg_vocab_num, n_layers=args.num_decoder_layer, 
+                        pad_idx=args.pad_idx, dropout=args.dropout)
+        model = Seq2Seq(encoder, decoder, device)
+    else:
+        raise Exception('Model error')
+
     if args.resume:
         model_ner = NER_model(emb_mat=emb_mat, word2id=hj_word2id, pad_idx=args.pad_idx, bos_idx=args.bos_idx, eos_idx=args.eos_idx, max_len=args.max_len,
                         d_model=args.d_model, d_embedding=args.d_embedding, n_head=args.n_head,
                         dim_feedforward=args.dim_feedforward, n_layers=args.num_encoder_layer, dropout=args.dropout,
-                        crf_loss=args.crf_loss, device=device)
+                        device=device)
         model_ner.load_state_dict(torch.load(os.path.join(args.save_path, 'ner_model_False.pt')))
         model.transformer_encoder.load_state_dict(model_ner.transformer_encoder.state_dict())
         for param in model.transformer_encoder.parameters():
@@ -126,18 +137,28 @@ def main(args):
                 non_pad = label_sequences != args.pad_idx
                 trg_sequences_target = label_sequences[non_pad].contiguous().view(-1)
 
-                # Target Masking
-                tgt_mask = model.generate_square_subsequent_mask(label_sequences.size(1))
-                tgt_mask = tgt_mask.to(device, non_blocking=True)
-                tgt_mask = tgt_mask.transpose(0, 1)
+                if args.model_setting == 'transformer':
+                    # Target Masking
+                    tgt_mask = model.generate_square_subsequent_mask(label_sequences.size(1))
+                    tgt_mask = tgt_mask.to(device, non_blocking=True)
+                    tgt_mask = tgt_mask.transpose(0, 1)
 
                 # Optimizer setting
                 optimizer.zero_grad()
 
                 # Model / Calculate loss
                 with torch.set_grad_enabled(phase == 'train'):
-                    predicted = model(input_sequences, label_sequences, king_id, tgt_mask, non_pad)
-                    loss = criterion(predicted, trg_sequences_target)
+                    if args.model_setting == 'transformer':
+                        predicted = model(input_sequences, label_sequences, king_id, tgt_mask, non_pad)
+                        loss = criterion(predicted, trg_sequences_target)
+                    if args.model_setting == 'rnn':
+                        teacher_forcing_ratio_ = 0.5
+                        input_sequences = input_sequences.transpose(0, 1)
+                        label_sequences = label_sequences.transpose(0, 1)
+                        predicted = model(input_sequences, label_sequences, king_id, 
+                                        teacher_forcing_ratio=teacher_forcing_ratio_)
+                        predicted = predicted.view(-1, trg_vocab_num)
+                        trg_sequences_target = label_sequences.contiguous().view(-1)
                     if phase == 'valid':
                         val_loss += loss.item()
                         top1_acc, top5_acc, top10_acc = accuracy(predicted, 
@@ -171,7 +192,7 @@ def main(args):
                 val_top5_acc /= len(dataloader_dict['valid'])
                 val_top10_acc /= len(dataloader_dict['valid'])
                 total_test_loss_list.append(val_loss)
-                print("[Epoch:%d] val_loss:%5.3f | top1_acc:%5.2f | top5_acc:%5.2f | top5_acc:%5.2f | spend_time:%5.2fmin"
+                print("[Epoch:%d] val_loss:%5.3f | top1_acc:%5.2f | top5_acc:%5.2f | top10_acc:%5.2f | spend_time:%5.2fmin"
                         % (e+1, total_loss, val_top1_acc, val_top5_acc, val_top10_acc, (time.time() - start_time_e) / 60))
                 if not best_val_loss or val_loss > best_val_loss:
                     print("[!] saving model...")
@@ -195,19 +216,19 @@ if __name__ == "__main__":
                         help='If not store, then training from scratch')
     parser.add_argument('--baseline', action='store_true',
                         help='If not store, then training from Dynamic Word Embedding')
+    parser.add_argument('--model_setting', default='transformer', choices=['transformer', 'rnn'],
+                        type=str, help='Model Selection; transformer vs rnn')
     parser.add_argument('--pad_idx', default=0, type=int, help='pad index')
     parser.add_argument('--bos_idx', default=1, type=int, help='index of bos token')
     parser.add_argument('--eos_idx', default=2, type=int, help='index of eos token')
     parser.add_argument('--unk_idx', default=3, type=int, help='index of unk token')
 
     parser.add_argument('--min_len', type=int, default=4, help='Minimum Length of Sentences; Default is 4')
-    parser.add_argument('--max_len', type=int, default=150, help='Max Length of Source Sentence; Default is 150')
-    parser.add_argument('--src_max_len', default=350, type=int, help='max length of the source sentence')
-    parser.add_argument('--trg_max_len', default=300, type=int, help='max length of the target sentence')
+    parser.add_argument('--max_len', type=int, default=500, help='Max Length of Source Sentence; Default is 150')
 
     parser.add_argument('--num_epoch', type=int, default=10, help='Epoch count; Default is 10')
     parser.add_argument('--batch_size', type=int, default=48, help='Batch size; Default is 48')
-    parser.add_argument('--lr', type=float, default=5e-5, help='Learning rate; Default is 5e-4')
+    parser.add_argument('--lr', type=float, default=5e-5, help='Learning rate; Default is 5e-5')
     parser.add_argument('--lr_decay', type=float, default=0.5, help='Learning rate decay; Default is 0.5')
     parser.add_argument('--lr_decay_step', type=int, default=2, help='Learning rate decay step; Default is 5')
     parser.add_argument('--grad_clip', type=int, default=5, help='Set gradient clipping; Default is 5')

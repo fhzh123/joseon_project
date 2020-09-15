@@ -9,7 +9,7 @@ from torch.nn.modules.activation import MultiheadAttention
 
 class NER_model(nn.Module):
     def __init__(self, emb_mat, word2id, pad_idx=0, bos_idx=1, eos_idx=2, max_len=150, d_model=512, d_embedding=256, n_head=8, 
-                 dim_feedforward=2048, n_layers=10, dropout=0.1, crf_loss=True, device=None):
+                 dim_feedforward=2048, n_layers=10, dropout=0.1, crf_loss=False, device=None):
         super(NER_model, self).__init__()
 
         self.pad_idx = pad_idx
