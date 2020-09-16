@@ -80,7 +80,10 @@ class Transformer(nn.Module):
         return decoder_out
 
     def translate_predict(self, src_sentence, device):
-        src_embs = self.src_embedding(src_sentence).transpose(0, 1)
+        if self.baseline:
+            encoder_out = self.src_embedding(src_input_sentence).transpose(0, 1)
+        else:
+            encoder_out = self.src_embedding(src_input_sentence, king_id).transpose(0, 1)
         predicted = torch.LongTensor([[self.bos_idx]]).to(device)
 
         for _ in range(self.max_len):

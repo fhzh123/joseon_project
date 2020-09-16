@@ -83,7 +83,6 @@ def main(args):
         parsed_index = list()
         parsed_index.append(args.bos_idx) # Start token add
         for ind in index:
-            ind = ind.replace(' ', '_')
             try:
                 parsed_index.append(word2id[ind])
             except KeyError:

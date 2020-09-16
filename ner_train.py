@@ -22,6 +22,7 @@ from torch.utils.data import DataLoader
 # Import Custom Module
 from named_entity_recognition.dataset import CustomDataset, PadCollate
 from named_entity_recognition.model import NER_model
+from translation.optimizer import Ralamb, WarmupLinearSchedule
 
 def main(args):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -70,10 +71,10 @@ def main(args):
                     dim_feedforward=args.dim_feedforward, n_layers=args.n_layers, dropout=args.dropout,
                     crf_loss=args.crf_loss, device=device)
     optimizer = optim.AdamW(filter(lambda p: p.requires_grad, model.parameters()), lr=args.lr, weight_decay=args.w_decay)
-    scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=args.lr_decay_step, gamma=args.lr_decay)
-    criterion = nn.CrossEntropyLoss()
+    scheduler = WarmupLinearSchedule(optimizer, warmup_steps=len(dataloader_dict['train'])*3, 
+                                     t_total=len(dataloader_dict['train'])*args.num_epoch)
+    criterion = nn.CrossEntropyLoss(ignore_index=args.pad_idx)
     model.to(device)
-    print(model)
 
     #===================================#
     #=========Model Train Start=========#
@@ -93,7 +94,7 @@ def main(args):
                 model.eval()
                 val_f1 = 0
                 val_loss = 0
-            for src, trg, king_id in tqdm(dataloader_dict[phase]):
+            for src, trg, king_id in dataloader_dict[phase]:
                 # Sourcen, Target sentence setting
                 src = src.to(device)
                 trg = trg.to(device)
@@ -136,6 +137,7 @@ def main(args):
                 if phase == 'train':
                     loss.backward()
                     optimizer.step()
+                    scheduler.step()
                     total_train_loss_list.append(loss.item())
 
                     # Print loss value only training
@@ -184,10 +186,10 @@ def main(args):
                     best_val_f1 = val_f1
 
         # Learning rate scheduler setting
-        scheduler.step()
+        # scheduler.step()
 
-    pd.DataFrame(total_train_loss_list).to_csv(os.path.join(args.save_path, 'train_loss.csv'), index=False)
-    pd.DataFrame(total_test_loss_list).to_csv(os.path.join(args.save_path, 'test_loss.csv'), index=False)
+    pd.DataFrame(total_train_loss_list).to_csv(os.path.join(args.save_path, f'ner_train_loss_{args.crf_loss}.csv'), index=False)
+    pd.DataFrame(total_test_loss_list).to_csv(os.path.join(args.save_path, f'ner_test_loss_{args.crf_loss}.csv'), index=False)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='NER argparser')

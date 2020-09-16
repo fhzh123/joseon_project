@@ -37,10 +37,10 @@ def main(args):
             for rc in record_list:
                 total_record.append(rc['hanja'])
             total_record = ' '.join(total_record)
-            new_word = re.sub(pattern='[^\w\s]', repl='', string=total_record)
-            new_word = re.sub(pattern='([ㄱ-ㅎㅏ-ㅣ]+)', repl='', string=new_word)
-            new_word = re.sub(pattern='[\u3131-\u3163\uac00-\ud7a3]+', repl='', string=new_word)
-            new_word = re.sub(pattern='[a-zA-Z0-9]+', repl='', string=new_word)
+            # new_word = re.sub(pattern='[^\w\s]', repl='', string=total_record)
+            # new_word = re.sub(pattern='([ㄱ-ㅎㅏ-ㅣ]+)', repl='', string=new_word)
+            # new_word = re.sub(pattern='[\u3131-\u3163\uac00-\ud7a3]+', repl='', string=new_word)
+            new_word = re.sub(pattern='[a-zA-Z0-9]+', repl='', string=total_record)
             comment_list.append(new_word)
             total_counter.update(new_word)
 

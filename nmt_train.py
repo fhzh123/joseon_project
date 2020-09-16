@@ -35,10 +35,13 @@ def main(args):
     with open(os.path.join(args.save_path, 'nmt_processed.pkl'), 'rb') as f:
         data_ = pickle.load(f)
         hj_train_indices = data_['hj_train_indices']
+        hj_valid_indices = data_['hj_valid_indices']
         hj_test_indices = data_['hj_test_indices']
         kr_train_indices = data_['kr_train_indices']
+        kr_valid_indices = data_['kr_valid_indices']
         kr_test_indices = data_['kr_test_indices']
         king_train_indices = data_['king_train_indices']
+        king_valid_indices = data_['king_valid_indices']
         king_test_indices = data_['king_test_indices']
         hj_word2id = data_['hj_word2id']
         hj_id2word = data_['hj_id2word']
@@ -55,7 +58,7 @@ def main(args):
     dataset_dict = {
         'train': CustomDataset(hj_train_indices, kr_train_indices, king_train_indices,
                             min_len=args.min_len, max_len=args.max_len),
-        'valid': CustomDataset(hj_test_indices, kr_test_indices, king_test_indices,
+        'valid': CustomDataset(hj_valid_indices, kr_test_indices, king_test_indices,
                             min_len=args.min_len, max_len=args.max_len)
     }
     dataloader_dict = {
@@ -104,8 +107,9 @@ def main(args):
         for param in model.transformer_encoder.parameters():
             param.requires_grad = False
     print("Total Parameters:", sum([p.nelement() for p in model.parameters()]))
+    print(f"Total number of trainingsets  iterations - {len(dataset_dict['train'])}, {len(dataloader_dict['train'])}")
 
-    optimizer = optim.AdamW(filter(lambda p: p.requires_grad, model.parameters()), lr=args.lr, weight_decay=args.w_decay)
+    optimizer = optim.AdamW(model.parameters(), lr=args.lr, weight_decay=args.w_decay)
     # scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=args.lr_decay_step, gamma=args.lr_decay)
     scheduler = WarmupLinearSchedule(optimizer, warmup_steps=len(dataloader_dict['train'])*3, 
                                      t_total=len(dataloader_dict['train'])*args.num_epoch)
@@ -128,7 +132,7 @@ def main(args):
                 val_top1_acc = 0
                 val_top5_acc = 0
                 val_top10_acc = 0
-            for src, trg, king_id in tqdm(dataloader_dict[phase]):
+            for i, (src, trg, king_id) in enumerate(dataloader_dict[phase]):
                 # Sourcen, Target sentence setting
                 label_sequences = trg.to(device, non_blocking=True)
                 input_sequences = src.to(device, non_blocking=True)
@@ -153,8 +157,8 @@ def main(args):
                         loss = criterion(predicted, trg_sequences_target)
                     if args.model_setting == 'rnn':
                         teacher_forcing_ratio_ = 0.5
-                        input_sequences = input_sequences.transpose(0, 1)
-                        label_sequences = label_sequences.transpose(0, 1)
+                        input_sequences = input_sequences#.transpose(0, 1)
+                        label_sequences = label_sequences#.transpose(0, 1)
                         predicted = model(input_sequences, label_sequences, king_id, 
                                         teacher_forcing_ratio=teacher_forcing_ratio_)
                         predicted = predicted.view(-1, trg_vocab_num)
@@ -181,8 +185,8 @@ def main(args):
                         top1_acc, top5_acc, top10_acc = accuracy(predicted, 
                                                                  trg_sequences_target, 
                                                                  topk=(1,5,10))
-                        print("[Epoch:%d] val_loss:%5.3f | top1_acc:%5.2f | top5_acc:%5.2f | spend_time:%5.2fmin"
-                                % (e+1, total_loss, top1_acc, top5_acc, (time.time() - start_time_e) / 60))
+                        print("[Epoch:%d][%d/%d] val_loss:%5.3f | top1_acc:%5.2f | top5_acc:%5.2f | spend_time:%5.2fmin"
+                                % (e+1, i, len(dataloader_dict['train']), total_loss, top1_acc, top5_acc, (time.time() - start_time_e) / 60))
                         freq = 0
 
             # Finishing iteration
@@ -205,8 +209,8 @@ def main(args):
         # Learning rate scheduler setting
         # scheduler.step()
 
-    pd.DataFrame(total_train_loss_list).to_csv(os.path.join(args.save_path, 'train_loss.csv'), index=False)
-    pd.DataFrame(total_test_loss_list).to_csv(os.path.join(args.save_path, 'test_loss.csv'), index=False)
+    pd.DataFrame(total_train_loss_list).to_csv(os.path.join(args.save_path, f'train_loss_{args.baseline}_{args.model_setting}_{args.resume}.csv'), index=False)
+    pd.DataFrame(total_test_loss_list).to_csv(os.path.join(args.save_path, f'test_loss_{args.baseline}_{args.model_setting}_{args.resume}.csv'), index=False)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='NMT argparser')

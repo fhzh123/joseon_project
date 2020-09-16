@@ -58,28 +58,28 @@ class PadCollate:
             pad_size[dim] = max_len - vec.size(dim)
             return torch.cat([vec, torch.LongTensor(*pad_size).fill_(self.pad_index)], dim=dim)
         
-        (str_, ner_, king_) = zip(*batch)
-        batch_size = len(str_)
+        (src_, trg_, king_) = zip(*batch)
+        batch_size = len(src_)
         
         ### for input_items desc
         # find longest sequence
-        input_seq_len = max(map(lambda x: len(x), str_))
+        input_seq_len = max(map(lambda x: len(x), src_))
         # pad according to max_len
-        str_ = [pad_tensor(torch.LongTensor(seq), input_seq_len, self.dim) for seq in str_]
-        str_ = torch.cat(str_)
-        str_ = str_.view(batch_size, input_seq_len)
+        src_ = [pad_tensor(torch.LongTensor(seq), input_seq_len, self.dim) for seq in src_]
+        src_ = torch.cat(src_)
+        src_ = src_.view(batch_size, input_seq_len)
 
         ### for target_items desc
-        output_seq_len = max(map(lambda x: len(x), ner_))
+        output_seq_len = max(map(lambda x: len(x), trg_))
         # pad according to max_len
-        ner_ = [pad_tensor(torch.LongTensor(seq), output_seq_len, self.dim) for seq in ner_]
-        ner_ = torch.cat(ner_)
-        ner_ = ner_.view(batch_size, output_seq_len)
+        trg_ = [pad_tensor(torch.LongTensor(seq), output_seq_len, self.dim) for seq in trg_]
+        trg_ = torch.cat(trg_)
+        trg_ = trg_.view(batch_size, output_seq_len)
         
         ### for king_list
         king_ = torch.LongTensor(king_).unsqueeze(1)
         
-        return str_, ner_, king_
+        return src_, trg_, king_
 
     def __call__(self, batch):
         return self.pad_collate(batch)
