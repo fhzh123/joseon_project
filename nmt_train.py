@@ -45,11 +45,13 @@ def main(args):
         king_test_indices = data_['king_test_indices']
         hj_word2id = data_['hj_word2id']
         hj_id2word = data_['hj_id2word']
-        kr_word2id = data_['kr_word2id']
-        kr_id2word = data_['kr_id2word']
         src_vocab_num = len(hj_word2id.keys())
-        trg_vocab_num = len(kr_word2id.keys())
+        # trg_vocab_num = len(kr_word2id.keys())
+        trg_vocab_num = 24000
         del data_
+
+    with open(os.path.join(args.save_path_kr, 'kr_word2id.pkl'), 'rb') as f:
+        kr_word2id = pickle.load(f)
 
     #===================================#
     #========DataLoader Setting=========#
@@ -73,7 +75,10 @@ def main(args):
     #====================================#
 
     with open(os.path.join(args.save_path, 'emb_mat.pkl'), 'rb') as f:
-        emb_mat = pickle.load(f)
+        emb_mat_src = pickle.load(f)
+
+    with open(os.path.join(args.save_path_kr, 'emb_mat.pkl'), 'rb') as f:
+        emb_mat_trg = pickle.load(f)
 
     #===================================#
     #===========Model Setting===========#
@@ -81,7 +86,9 @@ def main(args):
 
     print("Build model")
     if args.model_setting == 'transformer':
-        model = Transformer(emb_mat, hj_word2id, src_vocab_num, trg_vocab_num, pad_idx=args.pad_idx, bos_idx=args.bos_idx, 
+        model = Transformer(emb_mat_src, emb_mat_trg,
+                    hj_word2id, kr_word2id, src_vocab_num, trg_vocab_num, 
+                    pad_idx=args.pad_idx, bos_idx=args.bos_idx, 
                     eos_idx=args.eos_idx, max_len=args.max_len,
                     d_model=args.d_model, d_embedding=args.d_embedding, n_head=args.n_head, 
                     dim_feedforward=args.dim_feedforward, dropout=args.dropout,
@@ -157,8 +164,8 @@ def main(args):
                         loss = criterion(predicted, trg_sequences_target)
                     if args.model_setting == 'rnn':
                         teacher_forcing_ratio_ = 0.5
-                        input_sequences = input_sequences#.transpose(0, 1)
-                        label_sequences = label_sequences#.transpose(0, 1)
+                        input_sequences = input_sequences.transpose(0, 1)
+                        label_sequences = label_sequences.transpose(0, 1)
                         predicted = model(input_sequences, label_sequences, king_id, 
                                         teacher_forcing_ratio=teacher_forcing_ratio_)
                         predicted = predicted.view(-1, trg_vocab_num)
@@ -203,7 +210,7 @@ def main(args):
                     if not os.path.exists(args.save_path):
                         os.mkdir(args.save_path)
                     torch.save(model.state_dict(), 
-                               os.path.join(args.save_path, f'nmt_model_{args.resume}.pt'))
+                               os.path.join(args.save_path, f'nmt_model_{args.resume}_testing.pt'))
                     best_val_loss = val_loss
 
         # Learning rate scheduler setting
@@ -215,6 +222,8 @@ def main(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='NMT argparser')
     parser.add_argument('--save_path', default='./save', 
+                        type=str, help='path of data pickle file (train)')
+    parser.add_argument('--save_path_kr', default='./save_korean2', 
                         type=str, help='path of data pickle file (train)')
     parser.add_argument('--resume', action='store_true',
                         help='If not store, then training from scratch')

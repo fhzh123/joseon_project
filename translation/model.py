@@ -8,7 +8,8 @@ from .embedding.transformer_embedding import TransformerEmbedding, TransformerEm
 
 
 class Transformer(nn.Module):
-    def __init__(self, emb_mat, src_word2id, src_vocab_num, trg_vocab_num, pad_idx=0, bos_idx=1, 
+    def __init__(self, emb_mat_src, emb_mat_trg, src_word2id, trg_word2id, 
+            src_vocab_num, trg_vocab_num, pad_idx=0, bos_idx=1, 
             eos_idx=2, max_len=300, d_model=512, d_embedding=256, n_head=8, 
             dim_feedforward=2048, num_encoder_layer=8, num_decoder_layer=8, dropout=0.1,
             baseline=False, device=None):
@@ -28,10 +29,15 @@ class Transformer(nn.Module):
             self.src_embedding = TransformerEmbedding(src_vocab_num, d_model, d_embedding,
                                     pad_idx=self.pad_idx, max_len=self.max_len)
         else:
-            self.src_embedding = TransformerEmbedding_bilinear(len(src_word2id.keys()), d_model, d_embedding, emb_mat, src_word2id)
+            self.src_embedding = TransformerEmbedding_bilinear(len(src_word2id.keys()), 
+                d_model, d_embedding, emb_mat_src, src_word2id)
         # Target embedding part
-        self.trg_embedding = TransformerEmbedding(trg_vocab_num, d_model, d_embedding,
-                                pad_idx=self.pad_idx, max_len=self.max_len)
+        if self.baseline:
+            self.trg_embedding = TransformerEmbedding(trg_vocab_num, d_model, d_embedding,
+                                    pad_idx=self.pad_idx, max_len=self.max_len)
+        else:
+            self.trg_embedding = TransformerEmbedding_bilinear(len(trg_word2id.keys()), 
+                d_model, d_embedding, emb_mat_trg, trg_word2id)
 
         self.trg_output_linear = nn.Linear(d_model, d_embedding)
         self.trg_output_linear2 = nn.Linear(d_embedding, trg_vocab_num)
@@ -60,7 +66,11 @@ class Transformer(nn.Module):
             encoder_out = self.src_embedding(src_input_sentence).transpose(0, 1)
         else:
             encoder_out = self.src_embedding(src_input_sentence, king_id).transpose(0, 1)
-        decoder_out = self.trg_embedding(trg_input_sentence).transpose(0, 1)
+
+        if self.baseline:
+            decoder_out = self.trg_embedding(trg_input_sentence).transpose(0, 1)
+        else:
+            decoder_out = self.trg_embedding(trg_input_sentence, king_id).transpose(0, 1)
 
         # for i in range(len(self.encoders)):
         #     encoder_out = self.encoders[i](encoder_out, src_key_padding_mask=src_key_padding_mask)
