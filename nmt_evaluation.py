@@ -64,7 +64,9 @@ def main(args):
     #====================================#
 
     with open(os.path.join(args.save_path, 'emb_mat.pkl'), 'rb') as f:
-        emb_mat = pickle.load(f)
+        emb_mat_src = pickle.load(f)
+    with open(os.path.join(args.save_path_kr, 'emb_mat.pkl'), 'rb') as f:
+        emb_mat_trg = pickle.load(f)
 
     #===================================#
     #===========Model Setting===========#
@@ -72,7 +74,8 @@ def main(args):
 
     print("Build model")
     if args.model_setting == 'transformer':
-        model = Transformer(emb_mat, hj_word2id, src_vocab_num, trg_vocab_num, pad_idx=args.pad_idx, bos_idx=args.bos_idx, 
+        model = Transformer(emb_mat_src, emb_mat_trg, hj_word2id, kr_word2id, 
+                    src_vocab_num, trg_vocab_num, pad_idx=args.pad_idx, bos_idx=args.bos_idx, 
                     eos_idx=args.eos_idx, max_len=args.max_len,
                     d_model=args.d_model, d_embedding=args.d_embedding, n_head=args.n_head, 
                     dim_feedforward=args.dim_feedforward, dropout=args.dropout,
@@ -99,7 +102,7 @@ def main(args):
             param.requires_grad = False
     print("Total Parameters:", sum([p.nelement() for p in model.parameters()]))
 
-    model.load_state_dict(torch.load('./save3/nmt_model_False.pt'))
+    model.load_state_dict(torch.load('./save3/nmt_model_transformer_False_True_testing.pt'))
     model.to(device)
     model.eval()
 
@@ -136,27 +139,28 @@ def main(args):
     spm_ = spm.SentencePieceProcessor()
     spm_.Load(os.path.join(args.save_path, 'm_korean.model'))
 
-    with open(os.path.join(args.save_path, 'pred.text'), 'w') as f:
+    with open(os.path.join(args.save_path, 'pred5.txt'), 'w') as f:
         for pred in pred_list:
             f.write(spm_.decode_ids(pred))
             f.write('\n')
 
-    with open(os.path.join(args.save_path, 'real.text'), 'w') as f:
+    with open(os.path.join(args.save_path, 'real5.txt'), 'w') as f:
         for real in real_list:
             f.write(spm_.decode_ids(real))
             f.write('\n')
 
-    print('''type 'nlg-eval --hypothesis=save3/pred.txt --references=save3/real.txt' in terminal''')
+    print('''type 'nlg-eval --hypothesis=save3/pred5.txt --references=save3/real5.txt' in terminal''')
 
 if __name__=='__main__':
     parser = argparse.ArgumentParser(description='NMT argparser')
     parser.add_argument('--save_path', default='./save3', 
                         type=str, help='path of data pickle file (train)')
-    parser.add_argument()
     parser.add_argument('--resume', action='store_true',
                         help='If not store, then training from scratch')
     parser.add_argument('--baseline', action='store_true',
                         help='If not store, then training from Dynamic Word Embedding')
+    parser.add_argument('--save_path_kr', default='./save_korean2', 
+                        type=str, help='path of data pickle file (train)')
     parser.add_argument('--model_setting', default='transformer', choices=['transformer', 'rnn'],
                         type=str, help='Model Selection; transformer vs rnn')
 

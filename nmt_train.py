@@ -96,7 +96,7 @@ def main(args):
                     baseline=args.baseline, device=device)
     elif args.model_setting == 'rnn':
         encoder = Encoder(src_vocab_num, args.d_embedding, args.d_model, 
-                        emb_mat, hj_word2id, n_layers=args.num_encoder_layer, 
+                        emb_mat_src, hj_word2id, n_layers=args.num_encoder_layer, 
                         pad_idx=args.pad_idx, dropout=args.dropout)
         decoder = Decoder(args.d_embedding, args.d_model, trg_vocab_num, n_layers=args.num_decoder_layer, 
                         pad_idx=args.pad_idx, dropout=args.dropout)
@@ -170,6 +170,7 @@ def main(args):
                                         teacher_forcing_ratio=teacher_forcing_ratio_)
                         predicted = predicted.view(-1, trg_vocab_num)
                         trg_sequences_target = label_sequences.contiguous().view(-1)
+                        loss = criterion(predicted, trg_sequences_target)
                     if phase == 'valid':
                         val_loss += loss.item()
                         top1_acc, top5_acc, top10_acc = accuracy(predicted, 
@@ -192,7 +193,7 @@ def main(args):
                         top1_acc, top5_acc, top10_acc = accuracy(predicted, 
                                                                  trg_sequences_target, 
                                                                  topk=(1,5,10))
-                        print("[Epoch:%d][%d/%d] val_loss:%5.3f | top1_acc:%5.2f | top5_acc:%5.2f | spend_time:%5.2fmin"
+                        print("[Epoch:%d][%d/%d] train_loss:%5.3f | top1_acc:%5.2f | top5_acc:%5.2f | spend_time:%5.2fmin"
                                 % (e+1, i, len(dataloader_dict['train']), total_loss, top1_acc, top5_acc, (time.time() - start_time_e) / 60))
                         freq = 0
 
@@ -204,13 +205,13 @@ def main(args):
                 val_top10_acc /= len(dataloader_dict['valid'])
                 total_test_loss_list.append(val_loss)
                 print("[Epoch:%d] val_loss:%5.3f | top1_acc:%5.2f | top5_acc:%5.2f | top10_acc:%5.2f | spend_time:%5.2fmin"
-                        % (e+1, total_loss, val_top1_acc, val_top5_acc, val_top10_acc, (time.time() - start_time_e) / 60))
+                        % (e+1, val_loss, val_top1_acc, val_top5_acc, val_top10_acc, (time.time() - start_time_e) / 60))
                 if not best_val_loss or val_loss > best_val_loss:
                     print("[!] saving model...")
                     if not os.path.exists(args.save_path):
                         os.mkdir(args.save_path)
                     torch.save(model.state_dict(), 
-                               os.path.join(args.save_path, f'nmt_model_{args.resume}_testing.pt'))
+                               os.path.join(args.save_path, f'nmt_model_{args.model_setting}_{args.resume}_{args.baseline}_testing2.pt'))
                     best_val_loss = val_loss
 
         # Learning rate scheduler setting
