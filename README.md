@@ -27,7 +27,7 @@ Historical documents란 과거 인간의 사고방식과 의식 등이 문자로
 
 [12 Day] 논문 Final 피드백 & 영작 시작
 
-[13 Day]
+[13 Day] Figure, Latex Notation, Latex Table 수정
 
 [14 Day]
 
